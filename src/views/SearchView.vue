@@ -1,6 +1,8 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useStore } from 'vuex'
 import { sameBook, searchBooks } from '../services/books'
+import BookGrid from '../components/BookGrid.vue'
 
 const query = ref('')
 const books = ref([])
@@ -9,48 +11,69 @@ const startIndex = ref(0)
 const loading = ref(false)
 const error = ref('')
 const searched = ref(false)
-const selectedBook = ref(null)
-const sort = ref('relevance')
+const store = useStore()
 const requestToken = ref(0)
+const sort = ref('relevance')
 
-// Keep the API order for relevance and sort other fields locally.
+function clearSearch() {
+  // Ignore any search that is still running.
+  requestToken.value += 1
+  query.value = ''
+  books.value = []
+  total.value = 0
+  startIndex.value = 0
+  loading.value = false
+  error.value = ''
+  searched.value = false
+  sort.value = 'relevance'
+}
+
+watch(() => store.state.searchResetVersion, clearSearch)
+
+function publicationTime(book) {
+  const date = book.publicationDate || book.year
+  const parsed = Date.parse(date)
+
+  if (Number.isFinite(parsed)) return parsed
+
+  const year = Number(String(date).match(/\d{4}/)?.[0])
+  return year ? new Date(year, 0, 1).getTime() : null
+}
+
 const sortedBooks = computed(() => {
-  const results = [...books.value]
+  // Keep the API order when relevance is selected.
+  const result = [...books.value]
 
   if (sort.value === 'title-asc') {
-    return results.sort((first, second) =>
-      first.title.localeCompare(second.title)
-    )
+    return result.sort((a, b) => a.title.localeCompare(b.title))
   }
   if (sort.value === 'title-desc') {
-    return results.sort((first, second) =>
-      second.title.localeCompare(first.title)
-    )
+    return result.sort((a, b) => b.title.localeCompare(a.title))
   }
   if (sort.value === 'year-new') {
-    return results.sort((first, second) =>
-      second.year.localeCompare(first.year)
+    return result.sort(
+      (a, b) =>
+        (publicationTime(b) ?? -Infinity) - (publicationTime(a) ?? -Infinity)
     )
   }
   if (sort.value === 'year-old') {
-    return results.sort((first, second) =>
-      first.year.localeCompare(second.year)
+    return result.sort(
+      (a, b) =>
+        (publicationTime(a) ?? Infinity) - (publicationTime(b) ?? Infinity)
     )
   }
 
-  return results
+  return result
 })
 
-// Search Open Library and update the visible results.
-async function search(nextPage = false) {
+async function search(next = false) {
   if (!query.value.trim() || loading.value) return
 
-  if (!nextPage) {
+  if (!next) {
+    startIndex.value = 0
     books.value = []
     total.value = 0
-    startIndex.value = 0
     searched.value = true
-    selectedBook.value = null
   }
 
   loading.value = true
@@ -58,10 +81,12 @@ async function search(nextPage = false) {
   const currentToken = ++requestToken.value
 
   try {
+    // Load one page of books from Open Library.
     const result = await searchBooks(query.value.trim(), startIndex.value)
     if (currentToken !== requestToken.value) return
 
-    if (nextPage) {
+    if (next) {
+      // Skip books already shown on the page.
       const combined = [...books.value]
       result.books.forEach(book => {
         if (!combined.some(existing => sameBook(existing, book))) {
@@ -69,37 +94,29 @@ async function search(nextPage = false) {
         }
       })
       books.value = combined
+      startIndex.value = result.nextIndex
     } else {
       books.value = result.books.filter(
         (book, index, list) =>
           list.findIndex(candidate => sameBook(candidate, book)) === index
       )
+      startIndex.value = result.nextIndex
     }
 
     total.value = result.total
-    startIndex.value = result.nextIndex
-  } catch (searchError) {
+    if (next && !result.books.length) total.value = books.value.length
+  } catch (e) {
     if (currentToken === requestToken.value) {
-      error.value =
-        searchError.message || 'Something went wrong. Please try again.'
+      error.value = e.message || 'Something went wrong. Please try again.'
     }
   } finally {
     if (currentToken === requestToken.value) loading.value = false
   }
 }
-
-function chooseSuggestion(suggestion) {
-  query.value = suggestion
-  search()
-}
-
-function publicationDate(book) {
-  return book.publicationDate || book.year
-}
 </script>
 
 <template>
-  <section class="hero" id="top">
+  <section class="hero">
     <div class="hero-copy">
       <p class="eyebrow">YOUR NEXT CHAPTER STARTS HERE</p>
       <h1>Find a book.<br /><em>Keep the feeling.</em></h1>
@@ -124,7 +141,11 @@ function publicationDate(book) {
         aria-label="Search books"
         placeholder="Try a title or an author"
       />
-      <button class="button" type="submit" :disabled="!query.trim() || loading">
+      <button
+        class="button"
+        type="submit"
+        :disabled="!query.trim() || loading"
+      >
         {{ loading && !books.length ? 'Searching…' : 'Search books' }}
       </button>
     </form>
@@ -135,7 +156,7 @@ function publicationDate(book) {
         v-for="suggestion in ['omniscient reader\'s viewpoint', 'Kotteri', 'Harry Potter']"
         :key="suggestion"
         class="chip"
-        @click="chooseSuggestion(suggestion)"
+        @click="query = suggestion; search()"
       >
         {{ suggestion }}
       </button>
@@ -183,29 +204,7 @@ function publicationDate(book) {
     <div v-else-if="!books.length" class="state-message">
       Try another title, author, or a broader search.
     </div>
-
-    <div v-else class="book-grid">
-      <article v-for="book in sortedBooks" :key="book.id" class="book-card">
-        <button
-          class="book-select"
-          :aria-label="`View details for ${book.title}`"
-          @click="selectedBook = book"
-        >
-          <span class="cover" :class="{ 'cover-empty': !book.image }">
-            <img v-if="book.image" :src="book.image" :alt="`Cover of ${book.title}`" loading="lazy" />
-            <span v-else class="cover-fallback">✦<small>cover unavailable</small></span>
-          </span>
-          <span class="card-content">
-            <span class="eyebrow">{{ publicationDate(book) }}</span>
-            <span class="book-title">{{ book.title }}</span>
-            <span class="muted authors">
-              {{ book.authors.join(', ') || 'Unknown author' }}
-            </span>
-            <span class="select-label">View book details</span>
-          </span>
-        </button>
-      </article>
-    </div>
+    <BookGrid v-else :books="sortedBooks" show-added />
 
     <div v-if="startIndex < total && books.length" class="load-more">
       <button
@@ -217,51 +216,4 @@ function publicationDate(book) {
       </button>
     </div>
   </section>
-
-  <div
-    v-if="selectedBook"
-    class="modal-backdrop"
-    role="presentation"
-    @click.self="selectedBook = null"
-  >
-    <section
-      class="book-modal"
-      role="dialog"
-      aria-modal="true"
-      :aria-label="selectedBook.title"
-    >
-      <button
-        class="modal-close"
-        aria-label="Close book details"
-        @click="selectedBook = null"
-      >
-        ×
-      </button>
-      <div class="modal-cover">
-        <img
-          v-if="selectedBook.image"
-          :src="selectedBook.image"
-          :alt="`Cover of ${selectedBook.title}`"
-        />
-        <span v-else class="cover-fallback">✦</span>
-      </div>
-      <div class="modal-copy">
-        <p class="eyebrow">BOOK DETAILS</p>
-        <h2>{{ selectedBook.title }}</h2>
-        <p class="detail-author">
-          by {{ selectedBook.authors.join(', ') || 'Unknown author' }}
-        </p>
-        <p class="detail-meta">{{ publicationDate(selectedBook) }}</p>
-        <p class="detail-description">{{ selectedBook.description }}</p>
-        <a
-          class="text-link"
-          :href="selectedBook.infoLink"
-          target="_blank"
-          rel="noreferrer"
-        >
-          More about this book
-        </a>
-      </div>
-    </section>
-  </div>
 </template>
