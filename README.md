@@ -2,10 +2,9 @@
 
 ## Installation
 
-Requires Node.js 20.19+ or 22.12+.
+Requires Node.js.
 
 ```sh
-npm install
 npm run dev
 ```
 
