@@ -14,6 +14,7 @@ const searched = ref(false)
 const store = useStore()
 const requestToken = ref(0)
 const sort = ref('relevance')
+const coverOnly = ref(false)
 
 function clearSearch() {
   // Ignore any search that is still running.
@@ -26,6 +27,7 @@ function clearSearch() {
   error.value = ''
   searched.value = false
   sort.value = 'relevance'
+  coverOnly.value = false
 }
 
 watch(() => store.state.searchResetVersion, clearSearch)
@@ -40,9 +42,15 @@ function publicationTime(book) {
   return year ? new Date(year, 0, 1).getTime() : null
 }
 
+// The API provides image URLs only when it has a cover ID.
+// Do not filter on descriptions or collapse different editions here.
+const visibleBooks = computed(() =>
+  coverOnly.value ? books.value.filter(book => Boolean(book.image)) : books.value
+)
+
 const sortedBooks = computed(() => {
   // Keep the API order when relevance is selected.
-  const result = [...books.value]
+  const result = [...visibleBooks.value]
 
   if (sort.value === 'title-asc') {
     return result.sort((a, b) => a.title.localeCompare(b.title))
@@ -181,8 +189,12 @@ async function search(next = false) {
       </div>
 
       <div v-if="total" class="results-tools">
+        <label class="cover-filter">
+          <input type="checkbox" v-model="coverOnly" />
+          Anti-Ghost
+        </label>
         <span class="muted">
-          Showing {{ books.length }} of {{ total.toLocaleString() }} books
+          Showing {{ visibleBooks.length }} of {{ total.toLocaleString() }} books
         </span>
         <label class="sort-label">
           Sort by
@@ -203,6 +215,9 @@ async function search(next = false) {
     </div>
     <div v-else-if="!books.length" class="state-message">
       Try another title, author, or a broader search.
+    </div>
+    <div v-else-if="!visibleBooks.length && coverOnly" class="state-message">
+      No books with covers in these results. Try loading more or turn off the filter.
     </div>
     <BookGrid v-else :books="sortedBooks" show-added />
 
