@@ -19,8 +19,7 @@ function clearSearch() {
   <div class="app-shell" :data-theme="theme">
     <header class="topbar">
       <RouterLink to="/" class="brand">
-        <span class="brand-mark">b.</span>
-        <span>booknest</span>
+        <span>Booknest</span>
       </RouterLink>
 
       <nav class="main-nav" aria-label="Main navigation">

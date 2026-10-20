@@ -9,6 +9,16 @@ const status = ref('all')
 const sort = ref('added')
 const stats = computed(() => store.getters.stats)
 
+function publicationTime(book) {
+  const date = book.publicationDate || book.year
+  const parsed = Date.parse(date)
+
+  if (Number.isFinite(parsed)) return parsed
+
+  const year = Number(String(date).match(/\d{4}/)?.[0])
+  return year ? new Date(year, 0, 1).getTime() : null
+}
+
 // Apply the search, status filter, and selected sort order.
 const books = computed(() => {
   let result = store.state.books.filter(
@@ -22,14 +32,22 @@ const books = computed(() => {
   if (status.value === 'favorites') {
     result = result.filter(book => book.favorite)
   }
+  const sorted = [...result]
 
-  return [...result].sort((a, b) =>
-    sort.value === 'title'
-      ? a.title.localeCompare(b.title)
-      : sort.value === 'year'
-        ? String(b.year).localeCompare(String(a.year))
-        : b.addedAt.localeCompare(a.addedAt)
-  )
+  if (sort.value === 'title-asc') {
+    return sorted.sort((a, b) => a.title.localeCompare(b.title))
+  }
+  if (sort.value === 'title-desc') {
+    return sorted.sort((a, b) => b.title.localeCompare(a.title))
+  }
+  if (sort.value === 'year-new') {
+    return result.sort((a, b) => (publicationTime(b) ?? -Infinity) - (publicationTime(a) ?? -Infinity))
+  }
+  if (sort.value === 'year-old') {
+    return result.sort((a, b) => (publicationTime(a) ?? -Infinity) - (publicationTime(b) ?? -Infinity))
+  }
+  // Default (most recently added)
+  return sorted.sort((a, b) => b.addedAt.localeCompare(a.addedAt))
 })
 
 // Ask before removing a book from the library.
@@ -46,7 +64,7 @@ function remove(book) {
     <div>
       <p class="eyebrow">YOUR PERSONAL COLLECTION</p>
       <h1>My library<span class="heading-dot">.</span></h1>
-      <p class="muted">Every book you mean to read, in one lovely place.</p>
+      <p class="muted">Every book you mean to read, all in one place.</p>
     </div>
     <RouterLink to="/" class="button">Find a book</RouterLink>
   </section>
@@ -67,7 +85,7 @@ function remove(book) {
     <div class="stat-card">
       <span class="stat-number">
         {{ stats.average }}
-        <small v-if="stats.average !== '—'">/5</small>
+        <small v-if="stats.average !== '-'">/5</small>
       </span>
       <span class="stat-label">average rating</span>
     </div>
@@ -91,15 +109,17 @@ function remove(book) {
         </select>
         <select v-model="sort" aria-label="Sort books">
           <option value="added">Recently added</option>
-          <option value="title">Title A–Z</option>
-          <option value="year">Newest year</option>
+          <option value="title-asc">Title A-Z</option>
+          <option value="title-desc">Title Z-A</option>
+          <option value="year-new">Latest</option>
+          <option value="year-old">Oldest</option>
         </select>
       </div>
     </div>
 
     <div v-if="!store.state.books.length" class="empty-state">
       <div class="empty-icon">✳</div>
-      <h2>Your shelf is waiting.</h2>
+      <h2>Your shelf is empty.</h2>
       <p class="muted">
         Search for a book and add it here. Your collection stays yours, even
         after you close the page.

@@ -13,7 +13,7 @@ const books = computed(() => store.getters.favorites)
     <div>
       <p class="eyebrow">THE ONES THAT STAY WITH YOU</p>
       <h1>Favorites<span class="heading-dot">.</span></h1>
-      <p class="muted">The stories you want to keep close.</p>
+      <p class="muted">The stories you want to remember.</p>
     </div>
   </section>
 
@@ -50,9 +50,9 @@ const books = computed(() => store.getters.favorites)
 
   <div v-else class="empty-state">
     <div class="empty-icon">♡</div>
-    <h2>Save a little room for love.</h2>
+    <h2>Save your favorite stories.</h2>
     <p class="muted">
-      Tap the heart on any book in your library and it will find a home here.
+      Tap the heart on any book in your library and it will be displayed here.
     </p>
     <RouterLink to="/library" class="button button-quiet">
       Go to your library ↗

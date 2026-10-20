@@ -126,11 +126,10 @@ async function search(next = false) {
 <template>
   <section class="hero">
     <div class="hero-copy">
-      <p class="eyebrow">YOUR NEXT CHAPTER STARTS HERE</p>
-      <h1>Find a book.<br /><em>Keep the feeling.</em></h1>
+      <p class="eyebrow">KEEP TRACK OF YOUR BOOKS</p>
+      <h1>Find a book.<br /><em>Keep it in your list.</em></h1>
       <p class="hero-sub">
-        A little home for all the stories you love, and the ones you haven't
-        found yet.
+        Search the bookshelf to find your books and keep them in your personal library.
       </p>
     </div>
     <div class="hero-art" aria-hidden="true">
@@ -180,7 +179,7 @@ async function search(next = false) {
             error
               ? 'A small hiccup'
               : books.length
-                ? 'A good place to start'
+                ? 'Is this your book?'
                 : loading
                   ? 'Looking for your next read…'
                   : 'Nothing on this shelf yet'
@@ -200,8 +199,8 @@ async function search(next = false) {
           Sort by
           <select v-model="sort" aria-label="Sort search results">
             <option value="relevance">Relevance</option>
-            <option value="title-asc">Title A–Z</option>
-            <option value="title-desc">Title Z–A</option>
+            <option value="title-asc">Title A-Z</option>
+            <option value="title-desc">Title Z-A</option>
             <option value="year-new">Latest</option>
             <option value="year-old">Oldest</option>
           </select>
